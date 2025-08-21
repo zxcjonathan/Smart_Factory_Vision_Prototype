@@ -17,15 +17,14 @@ CLASS_MAP = {
     1: 'W_defect'     # 根據您的訓練日誌，ID 1 對應 W 類瑕疵
 }
 
-def process_image(img_path):
+def process_frame(frame):
     """
-    處理單張圖片，進行物件檢測
+    處理單張圖片幀，進行物件檢測
     """
-    img = cv2.imread(img_path)
-    if img is None:
+    if frame is None:
         return None, None
         
-    results = model(img)
+    results = model(frame)
     
     detections = []
     
@@ -42,8 +41,8 @@ def process_image(img_path):
                 class_name = CLASS_MAP[class_id]
                 
                 # 在圖片上繪製框和標籤
-                cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
-                cv2.putText(img, f'{class_name}: {confidence:.2f}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                cv2.putText(frame, f'{class_name}: {confidence:.2f}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
                 
                 detections.append({
                     "class": class_name,
@@ -51,9 +50,7 @@ def process_image(img_path):
                     "location": [x1, y1, x2, y2]
                 })
 
-    return img, detections
-
-# ... (省略之前的程式碼)
+    return frame, detections
 
 if __name__ == '__main__':
     # MQTT 設定
@@ -64,35 +61,43 @@ if __name__ == '__main__':
     client = mqtt.Client(client_id="vision_module")
     client.connect(broker_address, port)
 
-    # 圖片列表，可以加入更多圖片進行測試
-    image_list = [
-        '125_0_1_jpg.rf.8232e001d962520fcbab376eac7f104d.jpg',
-        '127_0_2_jpg.rf.7405f2c7974b1dc708b118e377c7fca7.jpg',
-        '136_0_2_jpg.rf.9d1a65cfa0f8ae097b2fcdf78ce89151.jpg',
-        '155_0_0_jpg.rf.205ef007f8eadc837a914912d8ddfb11.jpg',
-        '162_0_0_jpg.rf.5473ab941ab6043729a77a50c4332bed.jpg'
-    ]
+    # ==================== 在這裡加入視訊串流處理程式碼 ====================
+    # 設置視訊源：
+    # 0 代表第一個攝影機。如果你有多個攝影機，可以嘗試 1, 2, ...
+    # 或者你可以指定一個影片檔案的路徑，例如：video_path = 'my_video.mp4'
+    cap = cv2.VideoCapture(0)
 
-    for image_file in image_list:
-        img_path = Path('../data/valid/images') / image_file
+    if not cap.isOpened():
+        print("Error: Could not open video stream.")
+        exit()
 
-        # 處理圖片
-        output_img, detections = process_image(img_path)
+    try:
+        while True:
+            # 從視訊源讀取一幀畫面
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Could not read frame.")
+                break
 
-        # 取得瑕疵數量並發佈 MQTT 訊息
-        defect_count = len(detections)
-        payload = str(defect_count)
-        client.publish(topic, payload)
-        print(f"MQTT: Published defect count: {payload} for {image_file}")
+            # 處理當前幀畫面
+            # 我們將 frame 傳遞給 process_image 函式
+            output_img, detections = process_frame(frame)
 
-        # 視覺化結果
-        if output_img is not None:
-            # 將圖片轉換為 BGR 格式，以便 OpenCV 顯示
-            output_img_bgr = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
-            cv2.imshow('Detection Result', output_img_bgr)
-            cv2.waitKey(5000) # 顯示 1 秒後繼續
+            # 取得瑕疵數量並發佈 MQTT 訊息
+            defect_count = len(detections)
+            payload = str(defect_count)
+            client.publish(topic, payload)
+            print(f"MQTT: Published defect count: {payload}")
 
-    # 迴圈結束後，關閉所有視窗並斷開連接
-    cv2.destroyAllWindows()
-    client.disconnect()
-    print("MQTT: Disconnected from broker.")
+            # 視覺化結果
+            cv2.imshow('Real-time Detection', output_img)
+
+            # 按下 'q' 鍵退出迴圈
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        # 釋放資源並斷開連接
+        cap.release()
+        cv2.destroyAllWindows()
+        client.disconnect()
+        print("MQTT: Disconnected from broker.")
