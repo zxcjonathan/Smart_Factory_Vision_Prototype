@@ -28,6 +28,11 @@ def process_frame(frame):
     
     detections = []
     
+    defect_counts = {
+        'V_defect': 0,
+        'W_defect': 0
+    }
+    
     # 遍歷檢測結果
     for r in results:
         boxes = r.boxes
@@ -40,6 +45,10 @@ def process_frame(frame):
                 confidence = float(box.conf[0])
                 class_name = CLASS_MAP[class_id]
                 
+                # 根據類別名稱增加計數
+                if class_name in defect_counts:
+                    defect_counts[class_name] += 1
+                
                 # 在圖片上繪製框和標籤
                 cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
                 cv2.putText(frame, f'{class_name}: {confidence:.2f}', (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
@@ -50,7 +59,7 @@ def process_frame(frame):
                     "location": [x1, y1, x2, y2]
                 })
 
-    return frame, detections
+    return frame, detections, defect_counts
 
 if __name__ == '__main__':
     # MQTT 設定
@@ -81,13 +90,26 @@ if __name__ == '__main__':
 
             # 處理當前幀畫面
             # 我們將 frame 傳遞給 process_image 函式
-            output_img, detections = process_frame(frame)
+            output_img, detections, defect_counts = process_frame(frame)
 
             # 取得瑕疵數量並發佈 MQTT 訊息
-            defect_count = len(detections)
-            payload = str(defect_count)
+            # 現在我們將發佈一個包含所有瑕疵數量的 JSON 物件
+            
+            # 為了方便管理，你可以將總數也加進去
+            total_defects = len(detections)
+            # 建立一個 Python 字典來存放所有數據
+            mqtt_data = {
+                'total_defects': total_defects,
+                 'V_defect': defect_counts.get('V_defect', 0),
+                 'W_defect': defect_counts.get('W_defect', 0)
+            }
+            
+            # 使用 json.dumps() 將字典轉換為 JSON 格式的字串
+            payload = json.dumps(mqtt_data)
+            
+            # 發佈 JSON 字串
             client.publish(topic, payload)
-            print(f"MQTT: Published defect count: {payload}")
+            print(f"MQTT: Published payload: {payload}")
 
             # 視覺化結果
             cv2.imshow('Real-time Detection', output_img)
