@@ -53,45 +53,46 @@ def process_image(img_path):
 
     return img, detections
 
-if __name__ == '__main__':
-    # ==================== 在這裡加入 MQTT 初始化程式碼 ====================
-    # MQTT 設定
-    broker_address = "broker.hivemq.com" # 免費公共代理伺服器
-    port = 1883
-    topic = "smart_factory/defect_count" # 定義發佈主題
+# ... (省略之前的程式碼)
 
-    # 創建 MQTT 客戶端
+if __name__ == '__main__':
+    # MQTT 設定
+    broker_address = "broker.hivemq.com"
+    port = 1883
+    topic = "smart_factory/defect_count"
+
     client = mqtt.Client(client_id="vision_module")
     client.connect(broker_address, port)
 
-    # 測試單張圖片
-    img_path = '../data/valid/images/125_0_1_jpg.rf.8232e001d962520fcbab376eac7f104d.jpg'
-    output_img, detections = process_image(img_path)
-    
-    # ==================== 在這裡加入 發佈 MQTT 訊息的程式碼 ====================
-    # 取得偵測到的物件數量
-    defect_count = len(detections)
-    
-    # 將數量轉換為字串，並準備發佈
-    payload = str(defect_count)
-    
-    # 發佈訊息
-    client.publish(topic, payload)
-    print(f"MQTT: Published defect count: {payload} to topic: {topic}")
+    # 圖片列表，可以加入更多圖片進行測試
+    image_list = [
+        '125_0_1_jpg.rf.8232e001d962520fcbab376eac7f104d.jpg',
+        '127_0_2_jpg.rf.7405f2c7974b1dc708b118e377c7fca7.jpg',
+        '136_0_2_jpg.rf.9d1a65cfa0f8ae097b2fcdf78ce89151.jpg',
+        '155_0_0_jpg.rf.205ef007f8eadc837a914912d8ddfb11.jpg',
+        '162_0_0_jpg.rf.5473ab941ab6043729a77a50c4332bed.jpg'
+    ]
 
+    for image_file in image_list:
+        img_path = Path('../data/valid/images') / image_file
 
-    if output_img is not None:
-        # 將圖片轉換為 BGR 格式，以便 OpenCV 顯示
-        output_img_bgr = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
+        # 處理圖片
+        output_img, detections = process_image(img_path)
 
-        # 在螢幕上顯示圖片
-        cv2.imshow('Detection Result', output_img_bgr)
-        print("Detection Result displayed. Press any key to close the window.")
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-    else:
-        print("Error: Could not process image.")
-    
-    # ==================== 在這裡加入 斷開 MQTT 連接的程式碼 ====================
+        # 取得瑕疵數量並發佈 MQTT 訊息
+        defect_count = len(detections)
+        payload = str(defect_count)
+        client.publish(topic, payload)
+        print(f"MQTT: Published defect count: {payload} for {image_file}")
+
+        # 視覺化結果
+        if output_img is not None:
+            # 將圖片轉換為 BGR 格式，以便 OpenCV 顯示
+            output_img_bgr = cv2.cvtColor(output_img, cv2.COLOR_RGB2BGR)
+            cv2.imshow('Detection Result', output_img_bgr)
+            cv2.waitKey(5000) # 顯示 1 秒後繼續
+
+    # 迴圈結束後，關閉所有視窗並斷開連接
+    cv2.destroyAllWindows()
     client.disconnect()
     print("MQTT: Disconnected from broker.")
