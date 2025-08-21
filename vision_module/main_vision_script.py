@@ -110,7 +110,17 @@ if __name__ == '__main__':
             # 發佈 JSON 字串
             client.publish(topic, payload)
             print(f"MQTT: Published payload: {payload}")
+            # 在畫面上顯示即時數據
+            # 建立要顯示的文字訊息
+            text_v = f"V_defect: {defect_counts.get('V_defect', 0)}"
+            text_w = f"W_defect: {defect_counts.get('W_defect', 0)}"
+            text_total = f"Total: {total_defects}"
 
+            # 在畫面上繪製文字
+            # 參數：圖片、文字、左上角座標、字體、大小、顏色、粗細
+            cv2.putText(output_img, text_v, (20, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(output_img, text_w, (20, 90), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
+            cv2.putText(output_img, text_total, (20, 130), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2, cv2.LINE_AA)
             # 視覺化結果
             cv2.imshow('Real-time Detection', output_img)
 
